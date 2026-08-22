@@ -205,8 +205,8 @@ async def status():
                 "ack": CONFIG.ack_port,
                 "stress": CONFIG.stress_port,
             },
-            "require_approval": CONFIG.require_approval,
             "render_size": CONFIG.render_size,
+            "fixed_scale": CONFIG.fixed_scale,
             "state_dir": CONFIG.state_dir,
         },
         "views_available": {
@@ -293,6 +293,7 @@ async def set_notch(modes: int):
 async def buffer_state():
     span = STORE.span()
     return {"frames": STORE.depth(), "span": list(span) if span else None,
+            "gaps": STORE.gaps(),
             "notch_modes": STORE.notch_modes,
             "notched": [list(m) for m in STORE.notched],
             "baseline": STORE.baseline[0] if STORE.baseline else None,
@@ -383,8 +384,12 @@ def _state_dirs() -> list[Path]:
 async def list_states():
     rows = []
     for d in _state_dirs():
+        # The daemon writes ckpt_<stamp>_c<cycle>.bin; anything the user renamed
+        # keeps whatever extension they chose, so accept both.
         try:
-            entries = sorted(d.glob("*.khrg"), key=lambda x: x.stat().st_mtime, reverse=True)
+            entries = sorted(
+                {p for pattern in ("ckpt_*.bin", "*.khrg") for p in d.glob(pattern)},
+                key=lambda x: x.stat().st_mtime, reverse=True)
         except OSError:
             continue
         for p in entries[:40]:
@@ -402,8 +407,8 @@ async def save_state(body: StateIn):
     grid = int(tel.get("grid", 1024))
     directory = body.dir.strip() or CONFIG.state_dir
 
-    name = body.name.strip() or f"state_c{cycle}.khrg"
-    if "/" in name or "\\" in name:
+    name = body.name.strip()
+    if name and ("/" in name or "\\" in name):
         raise HTTPException(status_code=400, detail="name must not contain a path separator")
 
     d = Path(directory)
@@ -417,34 +422,65 @@ async def save_state(body: StateIn):
     if warning:
         raise HTTPException(status_code=400, detail=warning)
 
-    target = str(d / name)
-    result = await asyncio.to_thread(bridge.send, {"cmd": "save_state", "path": target})
+    # save_state takes a DIRECTORY, not a file path. The daemon builds the
+    # filename itself — save_checkpoint() does
+    #   snprintf(path, "%s/ckpt_%04d%02d%02d_%02d%02d%02d_c%d.bin", dir, ...)
+    # so passing a file path makes it fopen("<file>/ckpt_....bin"), which fails
+    # with ENOTDIR and acks status "error". Send the directory and then find
+    # whatever the daemon actually created.
+    before = {p.name for p in d.glob("ckpt_*.bin")}
+    result = await asyncio.to_thread(bridge.send, {"cmd": "save_state", "path": str(d)})
     out = result.to_dict()
-    out["target"] = target
+    out["directory"] = str(d)
+    out["expected_bytes"] = needed
 
-    # An ack is not proof the bytes landed, and a half-written checkpoint on a
-    # full stick still acks. Wait for the size to settle, then check it.
-    p = Path(target)
-    settled = 0
-    for _ in range(20):
+    created: Path | None = None
+    settled = -1
+    for _ in range(25):
         await asyncio.sleep(0.4)
-        if not p.exists():
-            continue
-        size = p.stat().st_size
+        if created is None:
+            fresh = [p for p in d.glob("ckpt_*.bin") if p.name not in before]
+            if fresh:
+                created = max(fresh, key=lambda p: p.stat().st_mtime)
+            else:
+                continue
+        size = created.stat().st_size
         if size == settled and size > 0:
             break
         settled = size
-    out["file_exists"] = p.exists()
-    out["file_bytes"] = p.stat().st_size if p.exists() else 0
-    out["expected_bytes"] = needed
-    if out["file_exists"] and out["file_bytes"] < needed:
-        out["detail"] += (f" — the file is {out['file_bytes']} bytes but a "
-                          f"{grid}² checkpoint is {needed}. It is truncated.")
+
+    if created is None:
         out["file_exists"] = False
-    elif not out["file_exists"]:
-        out["detail"] += (" — no file at the target path. If the daemon runs "
-                          "elsewhere it may have written relative to its own "
-                          "working directory.")
+        out["file_bytes"] = 0
+        out["target"] = None
+        out["detail"] += (f" — no new ckpt_*.bin appeared in {d}. If the daemon "
+                          f"runs on another host, or cannot write there, the "
+                          f"checkpoint did not land.")
+        return out
+
+    size = created.stat().st_size
+    out["file_bytes"] = size
+    out["file_exists"] = size >= needed
+
+    if size < needed:
+        out["detail"] += (f" — {created.name} is {size} bytes but a {grid}² "
+                          f"checkpoint is {needed}. It is truncated.")
+        out["target"] = str(created)
+        return out
+
+    # Only rename once the write is known complete, so a rename can never
+    # disguise a partial file under a name the user chose.
+    if name:
+        wanted = d / name
+        if wanted.exists():
+            out["detail"] += f" — kept {created.name}; {name} already exists."
+        else:
+            try:
+                created.rename(wanted)
+                created = wanted
+            except OSError as exc:
+                out["detail"] += f" — could not rename to {name}: {exc}"
+    out["target"] = str(created)
     return out
 
 
