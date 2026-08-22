@@ -152,6 +152,31 @@ class FrameStore:
                 return None
             return self.small[0][0], self.small[-1][0]
 
+    def gaps(self) -> dict:
+        """Frames the buffer never received.
+
+        Every publisher in the daemon is bound with a send high-water mark of 1
+        (verified in cuda/khra_gixx_1024_v5.cu), so if this client stalls, older
+        frames are dropped on the daemon side with no error anywhere. The only
+        evidence is a jump in the cycle header. Correlation over a buffer with
+        holes is correlation over irregular sampling, so the views say when the
+        window is not continuous instead of quietly averaging across a hole.
+        """
+        with self._lock:
+            cycles = [c for c, _ in self.small]
+        if len(cycles) < 3:
+            return {"expected_step": None, "missing": 0, "largest_gap": 0,
+                    "continuous": True}
+        steps = [b - a for a, b in zip(cycles, cycles[1:])]
+        expected = min(steps)
+        missing = sum((s // expected) - 1 for s in steps if expected > 0)
+        return {
+            "expected_step": expected,
+            "missing": int(missing),
+            "largest_gap": int(max(steps)),
+            "continuous": missing == 0,
+        }
+
     def snapshot_small(self) -> tuple[list[int], np.ndarray] | None:
         with self._lock:
             if len(self.small) < 8:
@@ -242,6 +267,7 @@ def view_covariation(store: FrameStore, cx: float, cy: float,
         return None
     cycles, stack = got                      # (T, H, W)
     T, H, W = stack.shape
+    g = store.gaps()
 
     px = int(np.clip(cx * W, 0, W - 1))
     py = int(np.clip(cy * H, 0, H - 1))
@@ -270,5 +296,12 @@ def view_covariation(store: FrameStore, cx: float, cy: float,
         diverging=True,
         detail=(f"{T} frames, steps {cycles[0]} to {cycles[-1]}; patch radius "
                 f"{r} cells at {W}² working resolution. The chosen patch reads "
-                f"+1 by construction — it is correlated with itself."),
+                f"+1 by construction — it is correlated with itself."
+                + ("" if g["continuous"] else
+                   f" WINDOW NOT CONTINUOUS: {g['missing']} frames never "
+                   f"arrived (largest gap {g['largest_gap']} steps against an "
+                   f"expected {g['expected_step']}). The daemon publishes with a "
+                   f"high-water mark of 1 and drops frames silently when this "
+                   f"client stalls, so this correlation is over irregular "
+                   f"sampling.")),
     )
