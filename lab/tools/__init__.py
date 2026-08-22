@@ -1,8 +1,7 @@
-"""Development tools for Resonance Lab.
+"""Standalone tools that support the lab but are not part of the server.
 
-Includes mock_daemon, a wire-protocol stand-in for the real daemon, used to test
-the client without a GPU. It reproduces the daemon's awkward behaviours on
-purpose: silent out-of-range ignores, sticky injection parameters, stress only
-on request.
+    python -m lab.tools.mock_daemon
+
+speaks the real wire protocol on the real ports with no GPU, so the client can
+be exercised and changed without borrowing time on a real run.
 """
-
