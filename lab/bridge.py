@@ -296,7 +296,18 @@ class DaemonBridge:
                 f"the command may have been rejected, or it landed unacknowledged",
             )
         else:
-            result = CommandResult(command, sent_at, True, match, "acked by daemon")
+            # The ACK carries a status field and the daemon uses it — a failed
+            # save_checkpoint acks status "error". Treating every ack as success
+            # is the same mistake as trusting a set_* that was silently ignored.
+            status = match.get("status")
+            if status is not None and status != "ok":
+                result = CommandResult(
+                    command, sent_at, False, match,
+                    f"the daemon answered but reported status {status!r} — it "
+                    f"received the command and did not succeed",
+                )
+            else:
+                result = CommandResult(command, sent_at, True, match, "acked by daemon")
         self.command_log.append(result)
         return result
 
