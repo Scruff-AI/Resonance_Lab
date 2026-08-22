@@ -1,0 +1,9 @@
+# Resonance Lab — client-side only. Nothing here touches the CUDA build.
+pyzmq>=25.0
+fastapi>=0.110
+uvicorn[standard]>=0.29
+httpx>=0.27
+numpy>=1.24
+pillow>=10.0
+matplotlib>=3.7   # optional: exact colormaps. Without it the renderer falls
+                  # back to built-in ramps and labels them "-fallback".

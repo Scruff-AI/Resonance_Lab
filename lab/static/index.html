@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resonance Lab</title>
+<style>
+  :root{--bg:#0d1013;--panel:#151a20;--panel2:#1c232b;--line:#2a333d;--fg:#dce3ea;
+    --dim:#8b98a5;--accent:#4fd1c5;--warn:#f6ad55;--bad:#fc8181;--good:#68d391;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;
+    background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  header h1 span{color:var(--dim);font-weight:400}
+  .pill{font:12px var(--mono);padding:2px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--dim)}
+  .pill.ok{color:var(--good);border-color:#2f5d45}
+  .pill.bad{color:var(--bad);border-color:#5d2f2f}
+  #strip{margin-left:auto;font-size:12px;color:var(--dim);max-width:46ch;text-align:right}
+  main{display:grid;grid-template-columns:minmax(380px,1fr) minmax(440px,1fr);
+    gap:14px;padding:14px;align-items:start}
+  @media(max-width:1080px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+  .card h2{margin:0;padding:9px 13px;font-size:12px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
+    border-bottom:1px solid var(--line);display:flex;justify-content:space-between;
+    align-items:center;gap:10px}
+  .card .body{padding:13px}
+  .stack>*+*{margin-top:14px}
+  #latticeWrap{position:relative;background:#05070a;border-radius:4px;overflow:hidden}
+  #lattice{display:block;width:100%;height:auto;image-rendering:pixelated}
+  #scalebar{font:11px var(--mono);color:var(--dim);margin-top:8px;word-break:break-word}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row+.row{margin-top:9px}
+  label{font-size:12px;color:var(--dim)}
+  select,input[type=text],input[type=number],textarea{background:var(--panel2);
+    color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:6px 8px;
+    font:13px var(--mono)}
+  input[type=number]{width:80px}
+  textarea{width:100%;font:13px/1.5 system-ui,sans-serif;resize:vertical}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    border-radius:5px;padding:6px 12px;font-size:13px;cursor:pointer}
+  button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{border-color:#2f5d58;color:var(--accent)}
+  button.danger:hover{border-color:var(--bad);color:var(--bad)}
+  table.rows{width:100%;border-collapse:collapse;font:11px var(--mono)}
+  table.rows th{color:var(--dim);text-align:right;font-weight:400;padding:2px 4px}
+  table.rows td{text-align:right;padding:2px 4px;border-top:1px solid var(--line)}
+  table.tel{width:100%;border-collapse:collapse;font:12px var(--mono)}
+  table.tel td{padding:2px 0}
+  table.tel td:first-child{color:var(--dim)}
+  table.tel td:last-child{text-align:right}
+  canvas.spark{width:100%;height:52px;display:block;background:#0a0d11;border-radius:4px}
+  .entry{font:12px var(--mono);padding:5px 0;border-bottom:1px solid var(--line)}
+  .entry:last-child{border-bottom:0}
+  .msg{padding:11px 0;border-bottom:1px solid var(--line)}
+  .msg:last-child{border-bottom:0}
+  .who{font:11px var(--mono);color:var(--dim);text-transform:uppercase;
+    letter-spacing:.07em;display:flex;justify-content:space-between;gap:10px}
+  .who .stamp{text-transform:none;letter-spacing:0;color:#5c6874}
+  .msg.assistant .who{color:var(--accent)}
+  .msg.error .txt{color:var(--bad)}
+  .txt{white-space:pre-wrap;word-break:break-word;margin-top:5px}
+  .attach{font:11px var(--mono);color:#5c6874;margin-top:7px;
+    border-left:2px solid var(--line);padding-left:8px}
+  #chatScroll{max-height:52vh;overflow-y:auto}
+  .note{font-size:12px;color:var(--dim)}
+  /* welcome */
+  #veil{position:fixed;inset:0;background:rgba(6,8,11,.82);display:none;
+    align-items:center;justify-content:center;padding:24px;z-index:50}
+  #welcome{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    max-width:620px;padding:26px 28px}
+  #welcome h3{margin:0 0 14px;font-size:19px;line-height:1.35}
+  #welcome p{white-space:pre-wrap;color:#c3ccd6}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Resonance Lab</h1>
+  <span id="pillConn" class="pill">connecting…</span>
+  <span id="pillCycle" class="pill">step —</span>
+  <span id="pillModel" class="pill">model —</span>
+  <div id="strip"></div>
+</header>
+
+<main>
+  <div class="stack">
+    <div class="card">
+      <h2>Field</h2>
+      <div class="body">
+        <div class="row">
+          <label>View</label>
+          <select id="view">
+            <option value="covariation">what moves with a place</option>
+            <option value="drive_removed" selected>drive removed</option>
+            <option value="space_time">space–time</option>
+            <option value="baseline">change since baseline</option>
+            <option value="deviation">field minus its mean</option>
+            <option value="raw">raw</option>
+            <option value="stress_xx">stress xx</option>
+            <option value="stress_yy">stress yy</option>
+            <option value="stress_xy">stress xy</option>
+          </select>
+          <label>Colour</label>
+          <select id="cmap">
+            <option value="">auto</option><option>viridis</option>
+            <option>inferno</option><option>coolwarm</option><option>gray</option>
+          </select>
+          <button id="relock" title="Set a new fixed scale from the current frame">re-scale</button>
+        </div>
+        <div class="row" style="margin-top:11px">
+          <div id="latticeWrap" style="flex:1"><canvas id="lattice" width="512" height="512"></canvas></div>
+        </div>
+        <div id="scalebar">waiting for a frame…</div>
+        <div class="note" id="clickHint" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:11px">
+          <label>remove</label>
+          <input type="number" id="notch" value="4" min="0" max="12" step="1" style="width:60px">
+          <label>strongest modes</label>
+          <button id="applyNotch">apply</button>
+          <button id="pinBaseline">pin baseline here</button>
+          <button id="clearBaseline">clear</button>
+          <span class="note" id="bufNote"></span>
+        </div>
+        <div class="row">
+          <label>show me every</label>
+          <input type="number" id="interval" value="10" min="0" step="1">
+          <label>steps</label>
+          <button id="setInterval">apply</button>
+          <button id="snapNow">now</button>
+          <button id="stressNow">stress frame</button>
+        </div>
+        <div class="note" id="cmdNote"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Readings</h2>
+      <div class="body">
+        <table class="tel"><tbody id="telBody"><tr><td>waiting…</td><td></td></tr></tbody></table>
+        <div style="margin-top:10px">
+          <div class="note" id="sparkLabel">coherence</div>
+          <canvas class="spark" id="spark"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Drive</h2>
+      <div class="body">
+        <div class="row">
+          <label style="width:78px">omega</label>
+          <input type="number" id="pOmega" step="0.001" min="0.5" max="1.99">
+          <button data-cmd="set_omega" data-src="pOmega">set</button>
+          <span class="note">0.5 – 1.99</span>
+        </div>
+        <div class="row">
+          <label style="width:78px">khra_amp</label>
+          <input type="number" id="pKhra" step="0.0001" min="0" max="0.2">
+          <button data-cmd="set_khra_amp" data-src="pKhra">set</button>
+          <span class="note">0 – 0.2</span>
+        </div>
+        <div class="row">
+          <label style="width:78px">gixx_amp</label>
+          <input type="number" id="pGixx" step="0.0001" min="0" max="0.1">
+          <button data-cmd="set_gixx_amp" data-src="pGixx">set</button>
+          <span class="note">0 – 0.1</span>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnReset" class="danger">reset to equilibrium</button>
+          <span class="note">destroys the run — save first</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Inject</h2>
+      <div class="body">
+        <div class="row">
+          <label>x</label><input type="number" id="ix" value="512" step="1">
+          <label>y</label><input type="number" id="iy" value="512" step="1">
+          <label>σ</label><input type="number" id="isig" value="20" min="1" max="256" step="1">
+        </div>
+        <div class="row">
+          <label>strength</label><input type="number" id="istr" value="0.06" step="0.005" min="-1" max="1">
+          <label>×</label><input type="number" id="irep" value="1" min="1" max="99" step="1">
+          <button id="btnInject" class="primary">inject</button>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="armClick"> click the field to place it</label>
+        </div>
+        <div class="note" id="injNote">σ and strength are sticky in the daemon — both are always sent.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Sweep</h2>
+      <div class="body">
+        <div class="note" style="margin-bottom:9px">
+          Comma-separated values, or blank to hold. The grid is every combination.
+        </div>
+        <div class="row"><label style="width:78px">omega</label>
+          <input type="text" id="sOmega" placeholder="1.5, 1.7, 1.9" style="flex:1"></div>
+        <div class="row"><label style="width:78px">khra_amp</label>
+          <input type="text" id="sKhra" placeholder="0.02, 0.05" style="flex:1"></div>
+        <div class="row"><label style="width:78px">gixx_amp</label>
+          <input type="text" id="sGixx" placeholder="" style="flex:1"></div>
+        <div class="row" style="margin-top:10px">
+          <label>settle</label><input type="number" id="sSettle" value="2000" step="100" min="0">
+          <label>steps</label>
+          <label style="margin-left:6px"><input type="checkbox" id="sReset"> reset between</label>
+          <label><input type="checkbox" id="sInject"> inject each point</label>
+        </div>
+        <div class="row">
+          <input type="text" id="sLabel" placeholder="name this sweep" style="flex:1">
+          <button id="sStart" class="primary">run</button>
+          <button id="sStop">stop</button>
+        </div>
+        <div class="note" id="sNote" style="margin-top:9px"></div>
+        <div id="sRows" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Checkpoints</h2>
+      <div class="body">
+        <div class="row">
+          <label>save to</label>
+          <select id="saveTarget" style="flex:1"><option value="">(loading targets…)</option></select>
+          <button id="saveNow" class="primary">save now</button>
+        </div>
+        <div id="states" style="margin-top:11px"><span class="note">no checkpoints yet</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Navigator
+      <span style="font-weight:400;text-transform:none;letter-spacing:0">
+        <select id="modelSel" style="font-size:12px;padding:3px 6px"><option>(loading)</option></select>
+      </span>
+    </h2>
+    <div class="body">
+      <div id="chatScroll"><span class="note">Nothing said yet.</span></div>
+      <div class="row" style="margin-top:12px">
+        <textarea id="chatInput" rows="3" placeholder="Say something to the Navigator…"></textarea>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="attachField" checked> attach the current view</label>
+        <span class="note" id="chatNote" style="margin-left:8px"></span>
+        <button id="sendChat" class="primary" style="margin-left:auto">Send</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="veil"><div id="welcome">
+  <h3 id="wTitle"></h3>
+  <p id="wBody"></p>
+  <div style="text-align:right;margin-top:20px">
+    <button class="primary" id="wClose">Start</button>
+  </div>
+</div></div>
+
+<script>
+const $=(i)=>document.getElementById(i);
+const fmt=(v,d=4)=>typeof v==="number"?v.toFixed(d):String(v??"—");
+let meta=null, sourceSize=[1024,1024];
+
+async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return r.json()}
+async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify(b||{})});const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.detail||r.status);return d}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+function note(kind,text){const n=$("cmdNote");n.textContent=text;
+  n.style.color=kind==="ok"?"var(--good)":kind==="unk"?"var(--warn)":"var(--bad)";
+  setTimeout(()=>{if(n.textContent===text)n.textContent=""},6000)}
+
+async function send(cmd){
+  try{const r=await jpost("/api/command",{command:cmd});
+    note(r.confirmed?"ok":"unk",`${cmd.cmd} — ${r.confirmed?"acknowledged":r.detail}`);return r}
+  catch(e){note("bad",`${cmd.cmd} refused — ${e.message}`);throw e}
+}
+
+// ---- field stream
+const ctx=$("lattice").getContext("2d");
+function connectField(){
+  const s=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/field`);
+  s.binaryType="arraybuffer";
+  s.onopen=()=>request();
+  s.onmessage=(ev)=>{
+    if(typeof ev.data==="string"){
+      const m=JSON.parse(ev.data);
+      if(m.type==="field_meta"){meta=m;sourceSize=m.source_size||sourceSize}
+      else if(m.type==="no_data"){$("scalebar").textContent=
+        `nothing for "${m.view}" yet` + (m.view.startsWith("stress")?" — press “stress frame”":"");}
+      return;
+    }
+    createImageBitmap(new Blob([ev.data],{type:"image/png"})).then(b=>{
+      const cv=$("lattice");
+      if(cv.width!==b.width||cv.height!==b.height){cv.width=b.width;cv.height=b.height}
+      ctx.drawImage(b,0,0);b.close();
+      if(meta) $("scalebar").innerHTML=
+        `<b>${esc(meta.quantity)}</b> · step ${meta.cycle}<br>`+
+        `<span style="color:#5c6874">against:</span> ${esc(meta.against||"—")}`+
+        (meta.detail?`<br><span style="color:#5c6874">${esc(meta.detail)}</span>`:"")+
+        `<br>${meta.fixed_scale?"fixed":"per-frame"} scale [${meta.vmin.toExponential(3)}, ${meta.vmax.toExponential(3)}] · `+
+        `${meta.colormap} · ${meta.source_size[0]}×${meta.source_size[1]} → ${meta.size[0]}×${meta.size[1]} by ${meta.reduction}`;
+    });
+  };
+  s.onclose=()=>setTimeout(connectField,1500);
+  window._field=s;
+}
+function request(){const s=window._field;
+  if(s&&s.readyState===1)s.send(JSON.stringify({view:$("view").value,cmap:$("cmap").value}))}
+$("view").onchange=()=>{request();hint()};
+$("cmap").onchange=request;
+
+function hint(){
+  const v=$("view").value;
+  $("clickHint").textContent = v==="covariation"
+    ? "Click anywhere on the field to ask what moves with that place."
+    : "";
+}
+$("lattice").onclick=async(ev)=>{
+  const r=ev.target.getBoundingClientRect();
+  const fx=(ev.clientX-r.left)/r.width, fy=(ev.clientY-r.top)/r.height;
+  if($("armClick").checked){
+    const x=Math.round(fx*sourceSize[0]), y=Math.round(fy*sourceSize[1]);
+    $("ix").value=x; $("iy").value=y;
+    await injectAt(x,y);
+    return;
+  }
+  if($("view").value==="covariation"){
+    await fetch(`/api/seed?x=${fx.toFixed(4)}&y=${fy.toFixed(4)}`,{method:"POST"});
+    request();
+  }
+};
+$("lattice").style.cursor="crosshair";
+
+$("applyNotch").onclick=async()=>{
+  const r=await jpost(`/api/notch?modes=${Number($("notch").value)}`);
+  note("ok",`removing the ${r.notch_modes} strongest modes — buffer refilling`);
+  request();
+};
+$("pinBaseline").onclick=async()=>{
+  try{const r=await jpost("/api/baseline");note("ok",`baseline pinned at step ${r.baseline}`);
+    $("view").value="baseline";request()}catch(e){note("bad",e.message)}
+};
+$("clearBaseline").onclick=async()=>{await fetch("/api/baseline?clear=true",{method:"POST"});
+  note("ok","baseline cleared")};
+
+async function refreshBuffer(){
+  try{const b=await jget("/api/buffer");
+    $("bufNote").textContent = b.frames
+      ? `${b.frames} frames buffered`+(b.span?` (steps ${b.span[0]}–${b.span[1]})`:"")
+        +(b.baseline!=null?` · baseline at ${b.baseline}`:"")
+      : "filling the buffer…";
+  }catch(e){}
+}
+setInterval(refreshBuffer,4000);
+$("relock").onclick=async()=>{await jpost(`/api/scale/relock?view=${encodeURIComponent($("view").value)}`);
+  note("ok","scale reset from the next frame");request()};
+
+// ---- telemetry
+function connectTel(){
+  const s=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/telemetry`);
+  s.onmessage=(ev)=>{const m=JSON.parse(ev.data);if(m.type!=="telemetry")return;
+    drawTel(m.data);
+    const ok=m.status?.connected;
+    $("pillConn").textContent=ok?"running":"quiet";
+    $("pillConn").className="pill "+(ok?"ok":"bad")};
+  s.onclose=()=>{$("pillConn").textContent="disconnected";
+    $("pillConn").className="pill bad";setTimeout(connectTel,1500)};
+}
+const ROWS=[["cycle",0],["coherence",4],["asymmetry",4],["omega",3],["khra_amp",4],
+  ["gixx_amp",4],["vel_mean",6],["vel_max",6],["vorticity_mean",6],
+  ["stress_xx",6],["stress_yy",6],["stress_xy",6],["gpu_temp_c",0],["gpu_util_pct",0]];
+const coh=[];
+function drawTel(t){
+  $("pillCycle").textContent="step "+(t.cycle??"—");
+  $("telBody").innerHTML=ROWS.filter(([k])=>k in t)
+    .map(([k,d])=>`<tr><td>${k}</td><td>${fmt(t[k],d)}</td></tr>`).join("");
+  primeParams(t);
+  if(typeof t.coherence==="number"){coh.push(t.coherence);if(coh.length>400)coh.shift();spark()}
+}
+function spark(){
+  const cv=$("spark"),w=cv.clientWidth||300,h=52;if(cv.width!==w){cv.width=w;cv.height=h}
+  const c=cv.getContext("2d");c.clearRect(0,0,w,h);if(coh.length<2)return;
+  const lo=Math.min(...coh),hi=Math.max(...coh),sp=(hi-lo)||1e-9;
+  c.strokeStyle="#4fd1c5";c.lineWidth=1.5;c.beginPath();
+  coh.forEach((v,i)=>{const x=i/(coh.length-1)*w,y=h-5-((v-lo)/sp)*(h-22);i?c.lineTo(x,y):c.moveTo(x,y)});
+  c.stroke();c.fillStyle="#8b98a5";c.font="10px ui-monospace,monospace";
+  c.textBaseline="top";c.fillText(hi.toFixed(5),3,3);
+  c.textBaseline="alphabetic";c.fillText(lo.toFixed(5),3,h-4);
+}
+
+// ---- interval + snapshots
+$("setInterval").onclick=()=>send({cmd:"set_snapshot_interval",interval:Number($("interval").value)});
+$("snapNow").onclick=()=>send({cmd:"snapshot_now"});
+$("stressNow").onclick=()=>send({cmd:"stress_snapshot_now"});
+
+// ---- checkpoints
+async function refreshTargets(){
+  const r=await jget("/api/save-targets");
+  $("saveTarget").innerHTML=r.targets.map(t=>
+    `<option value="${esc(t.path)}"${t.removable?" selected":""}>${esc(t.label)}</option>`).join("");
+}
+async function refreshStates(){
+  const r=await jget("/api/states");
+  const el=$("states");
+  if(!r.states.length){el.innerHTML=`<span class="note">nothing saved yet</span>`;return}
+  el.innerHTML=r.states.map(s=>`<div class="entry">${esc(s.name)}
+    <span style="color:var(--dim)">${(s.bytes/1048576).toFixed(0)} MB</span>
+    <button data-load="${esc(s.path)}" style="float:right">load</button></div>`).join("");
+  el.querySelectorAll("button[data-load]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Load this checkpoint?\n\nIt replaces what is currently running."))return;
+    try{const r=await jpost("/api/state/load",{path:b.dataset.load});
+      note(r.confirmed?"ok":"unk",r.confirmed?"loaded":r.detail)}catch(e){note("bad",e.message)}});
+}
+$("saveNow").onclick=async()=>{
+  try{const r=await jpost("/api/state/save",{dir:$("saveTarget").value});
+    note(r.file_exists?"ok":"unk",r.file_exists
+      ?`saved ${r.target} (${(r.file_bytes/1048576).toFixed(0)} MB)`
+      :`no file on disk yet — ${r.detail}`);
+    refreshStates()}catch(e){note("bad",e.message)}
+};
+
+// ---- models + chat
+async function refreshModels(){
+  const r=await jget("/api/models");
+  $("pillModel").textContent=r.backend+(r.error?" · unreachable":"");
+  $("pillModel").className="pill "+((r.error||!r.models.length)?"bad":"ok");
+  $("modelSel").innerHTML=r.models.length
+    ? r.models.map(m=>`<option>${esc(m)}</option>`).join("")
+    : `<option value="">${esc(r.error||"no models found")}</option>`;
+}
+async function refreshChat(){
+  const r=await jget("/api/chat");
+  const el=$("chatScroll");
+  if(!r.messages.length){el.innerHTML=`<span class="note">Nothing said yet.</span>`;return}
+  el.innerHTML=r.messages.map(m=>{
+    const who=m.role==="assistant"?"Navigator":m.role==="error"?"error":"you";
+    const stamp=[m.cycle!=null?`step ${m.cycle}`:null,
+      new Date(m.ts*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})]
+      .filter(Boolean).join(" · ");
+    const att=m.attached?`<div class="attach">attached — ${esc(m.attached)} view</div>`:"";
+    return `<div class="msg ${m.role}"><div class="who"><span>${who}</span>
+      <span class="stamp">${stamp}</span></div><div class="txt">${esc(m.content)}</div>${att}</div>`;
+  }).join("");
+  el.scrollTop=el.scrollHeight;
+}
+$("sendChat").onclick=async()=>{
+  const text=$("chatInput").value.trim(); if(!text)return;
+  $("sendChat").disabled=true; $("chatNote").textContent="thinking…";
+  try{await jpost("/api/chat",{message:text,model:$("modelSel").value,
+    attach_field:$("attachField").checked,view:$("view").value});
+    $("chatInput").value=""; $("chatNote").textContent="";}
+  catch(e){$("chatNote").textContent=e.message; $("chatNote").style.color="var(--bad)"}
+  finally{$("sendChat").disabled=false; refreshChat()}
+};
+$("chatInput").onkeydown=(e)=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))$("sendChat").click()};
+
+// ---- drive + injection
+document.querySelectorAll("button[data-cmd]").forEach(b=>b.onclick=()=>{
+  const v=$(b.dataset.src).value;
+  if(v==="")return note("bad","enter a value first");
+  send({cmd:b.dataset.cmd, value:Number(v)});
+});
+let primed=false;
+function primeParams(t){
+  if(primed||typeof t.omega!=="number")return;
+  $("pOmega").value=t.omega; $("pKhra").value=t.khra_amp; $("pGixx").value=t.gixx_amp;
+  primed=true;
+}
+$("btnReset").onclick=()=>{
+  if(confirm("Reset every cell to equilibrium?\n\nThis destroys the running world. Save a checkpoint first if it matters."))
+    send({cmd:"reset_equilibrium"});
+};
+async function injectAt(x,y){
+  const n=Math.max(1,Number($("irep").value)||1);
+  for(let i=0;i<n;i++){
+    await send({cmd:"inject_density",x:Number(x),y:Number(y),
+                sigma:Number($("isig").value),strength:Number($("istr").value)});
+  }
+}
+$("btnInject").onclick=()=>injectAt($("ix").value,$("iy").value);
+$("armClick").onchange=()=>{
+  $("injNote").textContent=$("armClick").checked
+    ? "Armed — clicking the field injects there."
+    : "σ and strength are sticky in the daemon — both are always sent.";
+  $("injNote").style.color=$("armClick").checked?"var(--warn)":"var(--dim)";
+};
+
+// ---- sweep
+function parseList(id){
+  return $(id).value.split(",").map(t=>t.trim()).filter(Boolean).map(Number).filter(n=>!isNaN(n));
+}
+$("sStart").onclick=async()=>{
+  const axes={};
+  const o=parseList("sOmega"), k=parseList("sKhra"), g=parseList("sGixx");
+  if(o.length)axes.omega=o; if(k.length)axes.khra_amp=k; if(g.length)axes.gixx_amp=g;
+  const body={axes,settle_steps:Number($("sSettle").value),
+    reset_between:$("sReset").checked,label:$("sLabel").value};
+  if($("sInject").checked) body.injection={x:Number($("ix").value),y:Number($("iy").value),
+    sigma:Number($("isig").value),strength:Number($("istr").value),repeat:Number($("irep").value)};
+  try{await jpost("/api/sweep/start",body); refreshSweep()}
+  catch(e){$("sNote").textContent=e.message; $("sNote").style.color="var(--bad)"}
+};
+$("sStop").onclick=async()=>{await jpost("/api/sweep/stop"); refreshSweep()};
+
+async function refreshSweep(){
+  let d; try{d=await jget("/api/sweep")}catch(e){return}
+  const n=$("sNote");
+  n.style.color = d.state==="failed"?"var(--bad)":d.state==="running"?"var(--accent)":"var(--dim)";
+  n.textContent = d.state==="idle"&&!d.total ? "" :
+    `${d.state} — ${d.done}/${d.total} points`+(d.detail?` · ${d.detail}`:"");
+  const rows=d.rows.slice(-12);
+  if(!rows.length){$("sRows").innerHTML="";return}
+  const swept=Object.keys(d.axes||{});
+  $("sRows").innerHTML=`<table class="rows"><tr>`+
+    swept.map(c=>`<th>${c}</th>`).join("")+
+    `<th>coherence</th><th>asymmetry</th><th>step</th></tr>`+
+    rows.map(r=>`<tr>`+swept.map(c=>`<td>${r[c]??"—"}</td>`).join("")+
+      `<td>${(r.read_coherence??0).toFixed?.(4)??"—"}</td>`+
+      `<td>${(r.read_asymmetry??0).toFixed?.(4)??"—"}</td>`+
+      `<td>${r.cycle??"—"}</td></tr>`).join("")+`</table>`;
+}
+setInterval(refreshSweep,2000);
+
+// ---- welcome
+async function initWelcome(){
+  const w = await jget("/api/welcome");
+  $("strip").textContent = w.strip;
+  $("wTitle").textContent = w.title;
+  $("wBody").textContent = w.body;
+  let seen = null;
+  try { seen = localStorage.getItem("rl_seen_welcome"); } catch(e) {}
+  if (!seen) $("veil").style.display = "flex";
+}
+$("wClose").onclick = () => {
+  $("veil").style.display = "none";
+  try { localStorage.setItem("rl_seen_welcome","1"); } catch(e) {}
+};
+
+// ---- boot
+connectField(); connectTel(); refreshModels(); refreshChat();
+refreshTargets(); refreshStates(); initWelcome(); refreshBuffer(); hint(); refreshSweep();
+setInterval(refreshStates,20000);
+</script>
+</body>
+</html>
