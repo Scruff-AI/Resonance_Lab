@@ -25,6 +25,12 @@ forcing carries about 99% of the field's variance, so every absolute view is
 corduroy and anything underneath it is invisible. The views here get the pump
 out of the way and put relationships on the screen instead.
 
+![raw, drive removed, co-variation, space–time](gallery/01_four_panel_comparison.png)
+
+*The same field in four views. Top left is what an absolute view gives you.
+More in [gallery/](gallery/).*
+
+
 > **Not yet run against a real daemon.** Everything was tested against
 > `lab/tools/mock_daemon.py`, written from the same reading of the CUDA source
 > as the client — so a misreading is reproduced in both and the tests still

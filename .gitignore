@@ -4,3 +4,4 @@ logs/
 *.pyc
 *.csv
 *.bin
+*.jsonl

@@ -96,7 +96,7 @@ LOG="logs/build_${VARIANT}_$(date +%Y%m%d_%H%M%S).log"
 "$NVCC" -O3 -g -lineinfo -arch="$ARCH" \
     -Xcompiler -rdynamic \
     -o "$OUT" "$SRC" \
-    -lzmq -lnvidia-ml 2>&1 | tee "$LOG"
+    -lzmq -lnvidia-ml -l:libstdc++.so.6 2>&1 | tee "$LOG"
 
 if [ ! -f "$OUT" ]; then
     echo "BUILD FAILED — see $LOG" >&2
