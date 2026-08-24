@@ -25,17 +25,15 @@ forcing carries about 99% of the field's variance, so every absolute view is
 corduroy and anything underneath it is invisible. The views here get the pump
 out of the way and put relationships on the screen instead.
 
-![raw, drive removed, co-variation, space–time](gallery/01_four_panel_comparison.png)
-
-*The same field in four views. Top left is what an absolute view gives you.
-More in [gallery/](gallery/).*
-
-
-> **Not yet run against a real daemon.** Everything was tested against
-> `lab/tools/mock_daemon.py`, written from the same reading of the CUDA source
-> as the client — so a misreading is reproduced in both and the tests still
-> pass. Treat your first real run as the actual verification, and report what
-> breaks.
+> **First real run: passed.** Built and run against the actual daemon on an RTX
+> 4090 — telemetry, snapshot decoding at 1024×1024, `save_state` and
+> `load_state`, parameter changes, injection, a sweep to CSV, all confirmed on
+> the real wire rather than against the mock.
+>
+> Two things are still unverified. Nobody has built it on an A100 yet, though
+> the `sm_80` path compiles. And the analysis views have never met a real
+> signal: on an unseeded world **drive removed** leaves noise, because there is
+> nothing in there to find. The planted structures are a feature of the mock.
 
 ---
 
@@ -62,6 +60,16 @@ git clone https://github.com/Scruff-AI/Resonance_Lab.git
 cd Resonance_Lab
 pip install -r lab/requirements.txt
 ```
+
+On Ubuntu 23.10 and later, `pip` refuses to install outside a virtual
+environment (PEP 668). Either use a venv:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r lab/requirements.txt
+```
+
+or override it: `pip install --break-system-packages -r lab/requirements.txt`.
 
 ---
 
