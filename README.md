@@ -135,6 +135,22 @@ scripts/run_lab.sh
 
 then tunnel to the compute node.
 
+### Two A100s, one node (optional)
+
+If the machine has two GPUs, you can put the lattice on one and the model on the
+other. Only two processes touch a GPU — the daemon and Ollama — so pin those and
+leave the lab (pure CPU) alone:
+
+```bash
+CUDA_VISIBLE_DEVICES=1 ./build/khra_gixx_1024_v5   # lattice on the second GPU
+CUDA_VISIBLE_DEVICES=0 ollama serve                # model on the first GPU
+scripts/run_lab.sh                                  # UI (CPU), same host
+```
+
+Everything still talks over `127.0.0.1`, so this is for two cards in **one
+machine** — not two separate machines.
+
+
 ### No GPU to hand?
 
 ```bash
