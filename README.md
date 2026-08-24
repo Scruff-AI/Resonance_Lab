@@ -150,6 +150,10 @@ scripts/run_lab.sh                                  # UI (CPU), same host
 Everything still talks over `127.0.0.1`, so this is for two cards in **one
 machine** — not two separate machines.
 
+You cannot run two lattices this way. The daemon binds all five of its ports
+with fixed numbers, so a second instance exits immediately with port 5556 in
+use. One world per machine, until the ports are made configurable in the CUDA.
+
 
 ### No GPU to hand?
 
@@ -247,6 +251,8 @@ a shorter interval or a longer look.
 - **The lattice is 1024², hardcoded** as `#define NX/NY` in the CUDA. 2048² is
   not implemented.
 - **One GPU.** A second card sits idle; there is no multi-GPU support.
+- **One lattice per machine.** The daemon's ports are hardcoded, so two
+  daemons cannot coexist on one host — including one per GPU.
 - **No authentication.** The web server binds loopback by default. Do not move
   it to `0.0.0.0` on a shared machine — the API accepts commands that change the
   running world.

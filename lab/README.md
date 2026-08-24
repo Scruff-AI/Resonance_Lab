@@ -8,11 +8,11 @@ pane pointed at whatever model you have.
 ZMQ ports. `cuda/` is untouched, and no command exists here that
 `khra_gixx_1024_v5` did not already accept.
 
-> **Status: not yet run against a real daemon.** Every test so far was against
-> `lab/tools/mock_daemon.py`, which was written from the same reading of
-> `cuda/khra_gixx_1024_v5.cu` as the client — so a misreading of the source is
-> reproduced in both and the tests pass anyway. Treat first contact with a real
-> run as the actual verification.
+> **Verified against a real daemon on an RTX 4090:** telemetry, snapshot
+> decoding, save_state/load_state, parameter changes, injection and a sweep
+> all confirmed on the real wire. Still unverified: no A100 build has been run,
+> and the analysis views have never met a real signal — on an unseeded world
+> drive removed leaves noise, because there is nothing planted to find.
 
 ---
 
@@ -40,8 +40,9 @@ RESONANCE_ARCH=sm_90 scripts/build_portable.sh     # H100
 ```
 
 Needs `libzmq` (`apt install libzmq3-dev`) and NVML, which ships with the
-driver. The script checks both before compiling. **This script has never been
-run — it is the least tested thing here.**
+driver. The script checks both before compiling. Built and verified on an RTX 4090 (sm_89), on the observer variant, and with
+RESONANCE_ARCH=sm_80 for the A100 target. On some systems the link needs
+-l:libstdc++.so.6, which the script now passes.
 
 ### 2. Start the daemon
 
@@ -131,10 +132,14 @@ at −0.35.
 
 ## Sweeps
 
-The results on this repository did not come from looking at a field state. They
-came from walking a grid of `omega`, `khra_amp` and `gixx_amp` and reading
-coherence and asymmetry at each point — which is what
-`scripts/periodic_table_sweep.sh` and `scripts/ab_power_test.sh` do by hand.
+The results in the main engine repository came from walking a grid of `omega`,
+`khra_amp` and `gixx_amp` and reading coherence and asymmetry at each point.
+The Sweep panel automates that.
+
+If you go looking at the hand-written sweep scripts in `Resonance_Engine`, note
+that `scripts/ab_power_test.sh` is broken in two ways: it connects to 5557 with
+a `zmq.PUSH` socket, which delivers nothing to the daemon's SUB, and it sets
+`omega` 6.00, above the 1.99 cap. Do not copy that pattern.
 
 The **Sweep** panel runs that: any combination of the three axes, optional
 repeated injections at each point, settling counted in the world's own steps
