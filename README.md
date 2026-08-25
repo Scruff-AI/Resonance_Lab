@@ -150,9 +150,13 @@ scripts/run_lab.sh                                  # UI (CPU), same host
 Everything still talks over `127.0.0.1`, so this is for two cards in **one
 machine** — not two separate machines.
 
-You cannot run two lattices this way. The daemon binds all five of its ports
-with fixed numbers, so a second instance exits immediately with port 5556 in
-use. One world per machine, until the ports are made configurable in the CUDA.
+You cannot run two lattices with the default build — the daemon binds five
+fixed ports, so a second instance exits immediately with port 5556 in use. The
+`ports` fork makes them configurable: build with
+`scripts/build_portable.sh ports`, then set `RESONANCE_PORT_BASE` (default
+5556, binds base+0…base+4). Run each daemon from its own working directory —
+`telemetry.jsonl` and the autosave checkpoint are written to the current
+directory, so two daemons in one directory would trample each other.
 
 
 ### No GPU to hand?
@@ -251,8 +255,9 @@ a shorter interval or a longer look.
 - **The lattice is 1024², hardcoded** as `#define NX/NY` in the CUDA. 2048² is
   not implemented.
 - **One GPU.** A second card sits idle; there is no multi-GPU support.
-- **One lattice per machine.** The daemon's ports are hardcoded, so two
-  daemons cannot coexist on one host — including one per GPU.
+- **One lattice per machine by default.** The stock daemon hardcodes its ports;
+  the `ports` fork lifts that (see the two-GPU section), but each daemon still
+  runs one world on one GPU.
 - **No authentication.** The web server binds loopback by default. Do not move
   it to `0.0.0.0` on a shared machine — the API accepts commands that change the
   running world.

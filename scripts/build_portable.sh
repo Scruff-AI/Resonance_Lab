@@ -9,6 +9,7 @@
 # Usage:
 #   scripts/build_portable.sh                 # build canonical v5
 #   scripts/build_portable.sh observer        # build the observer fork (adds 5560/5561)
+#   scripts/build_portable.sh ports           # build the port-configurable fork (RESONANCE_PORT_BASE)
 #   RESONANCE_ARCH=sm_80 scripts/build_portable.sh    # force an architecture
 #
 # The physics source is NOT modified by this script. It only changes how it is compiled.
@@ -22,7 +23,8 @@ VARIANT="${1:-v5}"
 case "$VARIANT" in
   v5)       SRC="cuda/khra_gixx_1024_v5.cu";          OUT="build/khra_gixx_1024_v5" ;;
   observer) SRC="cuda/khra_gixx_1024_v5_observer.cu"; OUT="build/khra_gixx_1024_v5_observer" ;;
-  *) echo "Unknown variant '$VARIANT' (expected: v5 | observer)" >&2; exit 2 ;;
+  ports)    SRC="cuda/khra_gixx_1024_v5_ports.cu";    OUT="build/khra_gixx_1024_v5_ports" ;;
+  *) echo "Unknown variant '$VARIANT' (expected: v5 | observer | ports)" >&2; exit 2 ;;
 esac
 
 [ -f "$SRC" ] || { echo "FATAL: source not found: $SRC" >&2; exit 1; }
