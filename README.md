@@ -133,13 +133,16 @@ srun --gres=gpu:1 --pty bash
 scripts/run_lab.sh
 ```
 
-then tunnel to the compute node.
+then tunnel to the compute node. `--gres=gpu:1` is for one lattice with no
+local model — the two-lattice layout (Layout B above) needs `--gres=gpu:2`, and
+so does Layout A if you want the model on the second card.
 
 ### Two A100s, one node (optional)
 
-If the machine has two GPUs, you can put the lattice on one and the model on the
-other. Only two processes touch a GPU — the daemon and Ollama — so pin those and
-leave the lab (pure CPU) alone:
+With two A100s you can have **two lattices**, or **one lattice and a local
+model** — not both. Ollama needs a card.
+
+**Layout A — one lattice, local model** (what most people want first):
 
 ```bash
 CUDA_VISIBLE_DEVICES=1 ./build/khra_gixx_1024_v5   # lattice on the second GPU
@@ -147,16 +150,46 @@ CUDA_VISIBLE_DEVICES=0 ollama serve                # model on the first GPU
 scripts/run_lab.sh                                  # UI (CPU), same host
 ```
 
-Everything still talks over `127.0.0.1`, so this is for two cards in **one
-machine** — not two separate machines.
+Everything talks over `127.0.0.1`, so this is two cards in **one machine**, not
+two separate machines.
 
-You cannot run two lattices with the default build — the daemon binds five
-fixed ports, so a second instance exits immediately with port 5556 in use. The
-`ports` fork makes them configurable: build with
-`scripts/build_portable.sh ports`, then set `RESONANCE_PORT_BASE` (default
-5556, binds base+0…base+4). Run each daemon from its own working directory —
-`telemetry.jsonl` and the autosave checkpoint are written to the current
-directory, so two daemons in one directory would trample each other.
+**Layout B — two independent lattices.** Build the port-configurable fork first
+(`scripts/build_portable.sh ports`). Each daemon writes `telemetry.jsonl` and its
+autosave checkpoint to its working directory, so run each from its own:
+
+```bash
+mkdir -p ~/runs/world_a ~/runs/world_b
+
+# terminal 1 — world A on the first GPU
+cd ~/runs/world_a
+CUDA_VISIBLE_DEVICES=0 RESONANCE_PORT_BASE=5556 ~/Resonance_Lab/build/khra_gixx_1024_v5_ports
+
+# terminal 2 — world B on the second GPU
+cd ~/runs/world_b
+CUDA_VISIBLE_DEVICES=1 RESONANCE_PORT_BASE=5666 ~/Resonance_Lab/build/khra_gixx_1024_v5_ports
+```
+
+Then one lab per world. The daemon takes a **base** port, but the lab client has
+no base — `config.py` reads one environment variable per field, uppercased — so
+the second lab needs all five set explicitly:
+
+```bash
+TELEMETRY_PORT=5666 COMMAND_PORT=5667 SNAPSHOT_PORT=5668 \
+ACK_PORT=5669 STRESS_PORT=5670 HTTP_PORT=8801 \
+  scripts/run_lab.sh
+```
+
+That asymmetry — a base on the daemon, five ports on the client — is a rough
+edge worth naming: get it wrong and a lab silently attaches to the wrong world
+and shows plausible, wrong data, which is worse than one that fails.
+
+**From a laptop**, tunnel both web ports:
+
+```bash
+ssh -N -L 8800:127.0.0.1:8800 -L 8801:127.0.0.1:8801 you@the-gpu-node
+```
+
+and open `http://127.0.0.1:8800` (world A) and `http://127.0.0.1:8801` (world B).
 
 
 ### No GPU to hand?
@@ -254,10 +287,10 @@ a shorter interval or a longer look.
 
 - **The lattice is 1024², hardcoded** as `#define NX/NY` in the CUDA. 2048² is
   not implemented.
-- **One GPU.** A second card sits idle; there is no multi-GPU support.
-- **One lattice per machine by default.** The stock daemon hardcodes its ports;
-  the `ports` fork lifts that (see the two-GPU section), but each daemon still
-  runs one world on one GPU.
+- **One world per GPU.** No single lattice spans two cards — one world lives on
+  one card, and there is no multi-GPU physics. The `ports` fork runs two
+  independent worlds on two cards (see the two-GPU section above), but that is
+  two worlds, not one bigger one.
 - **No authentication.** The web server binds loopback by default. Do not move
   it to `0.0.0.0` on a shared machine — the API accepts commands that change the
   running world.
