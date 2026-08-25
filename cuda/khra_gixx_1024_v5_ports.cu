@@ -774,9 +774,14 @@ int main() {
     signal(SIGTERM, shutdown_handler);
     signal(SIGINT, shutdown_handler);
     start_time = time(NULL);
+    int port_base = 5556;
+    const char* env_port_base = getenv("RESONANCE_PORT_BASE");
+    if (env_port_base && env_port_base[0] != '\0') {
+        port_base = (int)strtol(env_port_base, NULL, 10);
+    }
     printf("Khra'gixx 1024 v5 — GOLDEN-WEAVE INTEGRATION\n"); fflush(stdout);
-    printf("PUB telemetry on 5556 | SUB commands on 5557\n"); fflush(stdout);
-    printf("PUB snapshots on 5558 | PUB ack on 5559 | PUB stress on 5560\n"); fflush(stdout);
+    printf("PUB telemetry on %d | SUB commands on %d\n", port_base + 0, port_base + 1); fflush(stdout);
+    printf("PUB snapshots on %d | PUB ack on %d | PUB stress on %d\n", port_base + 2, port_base + 3, port_base + 4); fflush(stdout);
     printf("Khra: %.3f | gixx: %.3f | omega: %.2f\n", h_khra_amp, h_gixx_amp, h_omega); fflush(stdout);
     printf("Telemetry: coherence, asymmetry, velocity, stress, vorticity, NVML\n"); fflush(stdout);
     printf("Checkpoint format: KHRG v1 (compatible with v3)\n"); fflush(stdout);
@@ -844,11 +849,6 @@ int main() {
     cudaMemcpyToSymbol(d_khra_amp, &h_khra_amp, sizeof(float));
     cudaMemcpyToSymbol(d_gixx_amp, &h_gixx_amp, sizeof(float));
     
-    int port_base = 5556;
-    const char* env_port_base = getenv("RESONANCE_PORT_BASE");
-    if (env_port_base && env_port_base[0] != '\0') {
-        port_base = atoi(env_port_base);
-    }
     char ep_telemetry[64], ep_command[64], ep_snapshot[64], ep_ack[64], ep_stress[64];
     snprintf(ep_telemetry, sizeof(ep_telemetry), "tcp://127.0.0.1:%d", port_base + 0);
     snprintf(ep_command,   sizeof(ep_command),   "tcp://127.0.0.1:%d", port_base + 1);
@@ -869,11 +869,11 @@ int main() {
     zmq_setsockopt(publisher, ZMQ_LINGER, &linger, sizeof(linger));
     int rc = zmq_bind(publisher, ep_telemetry);
     if (rc != 0) {
-        fprintf(stderr, "FATAL: zmq_bind PUB failed: %s (port 5556 in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()));
+        fprintf(stderr, "FATAL: zmq_bind PUB failed: %s (port %d in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()), port_base + 0);
         fflush(stderr);
         return 1;
     }
-    printf("ZMQ PUB bound to port 5556\n"); fflush(stdout);
+    printf("ZMQ PUB bound to port %d\n", port_base + 0); fflush(stdout);
 
     // === ZMQ: SUB commands on 5557 (receives from PUB sockets) ===
     void* subscriber = zmq_socket(zmq_ctx, ZMQ_SUB);
@@ -884,11 +884,11 @@ int main() {
     zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "", 0);  // subscribe to all
     rc = zmq_bind(subscriber, ep_command);
     if (rc != 0) {
-        fprintf(stderr, "FATAL: zmq_bind SUB failed: %s (port 5557 in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()));
+        fprintf(stderr, "FATAL: zmq_bind SUB failed: %s (port %d in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()), port_base + 1);
         fflush(stderr);
         return 1;
     }
-    printf("ZMQ SUB bound to port 5557 (command channel)\n"); fflush(stdout);
+    printf("ZMQ SUB bound to port %d (command channel)\n", port_base + 1); fflush(stdout);
 
     // === v4: ZMQ PUB snapshots on 5558 ===
     void* snapshot_pub = zmq_socket(zmq_ctx, ZMQ_PUB);
@@ -898,11 +898,11 @@ int main() {
     zmq_setsockopt(snapshot_pub, ZMQ_LINGER, &linger, sizeof(linger));
     rc = zmq_bind(snapshot_pub, ep_snapshot);
     if (rc != 0) {
-        fprintf(stderr, "FATAL: zmq_bind snapshot PUB failed: %s (port 5558 in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()));
+        fprintf(stderr, "FATAL: zmq_bind snapshot PUB failed: %s (port %d in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()), port_base + 2);
         fflush(stderr);
         return 1;
     }
-    printf("ZMQ PUB bound to port 5558 (vision snapshots, raw float32)\n"); fflush(stdout);
+    printf("ZMQ PUB bound to port %d (vision snapshots, raw float32)\n", port_base + 2); fflush(stdout);
 
     // === v4: ZMQ PUB acknowledgments on 5559 ===
     void* ack_pub = zmq_socket(zmq_ctx, ZMQ_PUB);
@@ -911,11 +911,11 @@ int main() {
     zmq_setsockopt(ack_pub, ZMQ_LINGER, &linger, sizeof(linger));
     rc = zmq_bind(ack_pub, ep_ack);
     if (rc != 0) {
-        fprintf(stderr, "FATAL: zmq_bind ACK PUB failed: %s (port 5559 in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()));
+        fprintf(stderr, "FATAL: zmq_bind ACK PUB failed: %s (port %d in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()), port_base + 3);
         fflush(stderr);
         return 1;
     }
-    printf("ZMQ PUB bound to port 5559 (command ACK)\n"); fflush(stdout);
+    printf("ZMQ PUB bound to port %d (command ACK)\n", port_base + 3); fflush(stdout);
 
     // === v5: ZMQ PUB stress snapshots on 5560 ===
     void* stress_pub = zmq_socket(zmq_ctx, ZMQ_PUB);
@@ -925,11 +925,11 @@ int main() {
     zmq_setsockopt(stress_pub, ZMQ_LINGER, &linger, sizeof(linger));
     rc = zmq_bind(stress_pub, ep_stress);
     if (rc != 0) {
-        fprintf(stderr, "FATAL: zmq_bind stress PUB failed: %s (port 5560 in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()));
+        fprintf(stderr, "FATAL: zmq_bind stress PUB failed: %s (port %d in use — kill stale daemon first)\n", zmq_strerror(zmq_errno()), port_base + 4);
         fflush(stderr);
         return 1;
     }
-    printf("ZMQ PUB bound to port 5560 (stress field snapshots)\n"); fflush(stdout);
+    printf("ZMQ PUB bound to port %d (stress field snapshots)\n", port_base + 4); fflush(stdout);
 
     // === HOST MEMORY ===
     float *h_rho = (float*)malloc(scalar_size);
