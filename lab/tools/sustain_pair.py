@@ -7,15 +7,22 @@ schedule, so it is independent. It maintains sources; it does not plant a mark.
 
 This is the client-side half of the co-variation validation: seed a known
 correlated pair in a real lattice, then confirm the co-variation view finds it.
+
+Verified against cuda/khra_gixx_1024_v5.cu line 963 that the daemon handles one
+command per main-loop iteration, so back-to-back A and B injections do not
+overwrite each other — they land one cycle apart.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 
 import zmq
+
+from lab import commands as cmdspec
 
 
 def _point(s: str) -> tuple[float, float]:
@@ -53,19 +60,21 @@ def main() -> None:
     cmd.connect(f"tcp://{args.daemon_host}:{args.command_port}")
 
     tel = ctx.socket(zmq.SUB)
-    tel.connect(f"tcp://{args.daemon_host}:{args.telemetry_port}")
+    tel.setsockopt(zmq.CONFLATE, 1)  # keep only the newest telemetry message
     tel.setsockopt(zmq.SUBSCRIBE, b"")
     tel.setsockopt(zmq.RCVTIMEO, 2000)
+    tel.connect(f"tcp://{args.daemon_host}:{args.telemetry_port}")
 
     # PUB->SUB drops anything sent before the subscription handshake settles.
     time.sleep(1.0)
 
     def inject(x: float, y: float) -> None:
-        cmd.send_string(json.dumps({
+        payload = cmdspec.validate({
             "cmd": "inject_density",
             "x": x, "y": y,
             "sigma": args.sigma, "strength": args.strength,
-        }, separators=(",", ":")))
+        })
+        cmd.send_string(json.dumps(payload, separators=(",", ":")))
 
     cycle = 0
     last_ab = -1 << 30
@@ -95,6 +104,9 @@ def main() -> None:
                 print("done", flush=True)
                 break
             time.sleep(0.02)
+    except cmdspec.Rejected as exc:
+        print(f"rejected: {exc}", file=sys.stderr)
+        raise SystemExit(2)
     except KeyboardInterrupt:
         pass
     finally:
